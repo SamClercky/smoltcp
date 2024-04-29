@@ -1256,7 +1256,7 @@ impl InterfaceInner {
                         }
                         // Handle the joined multicast groups
                         _ => {
-                            #[cfg(feature = "rpl-mop-3")]
+                            #[cfg(all(feature = "rpl-mop-3", not(feature = "rpl-mop-3-smrf")))]
                             // If in a DODAG, filter out the previous hop and compile a list of the remaining canditates
                             if let Some(dodag) = &self.rpl.dodag {
                                 let parent = dodag.parent.iter().copied();
@@ -1283,7 +1283,48 @@ impl InterfaceInner {
                                     HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST),
                                 ))
                             }
-                            #[cfg(not(feature = "rpl-mop-3"))]
+                            #[cfg(all(feature = "rpl-mop-3", feature = "rpl-mop-3-smrf"))]
+                            {
+                                let Some(previous_hop) = previous_hop else {
+                                    // If we have no previous hop, the packet originated from this iface, and should thereby be forwarded
+                                    return Ok(heapless::Vec::from_iter(core::iter::once(
+                                        HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST),
+                                    )));
+                                };
+
+                                // Check if we have a parent and the packet is coming from our parent
+                                // If the packet is not coming from our parent, then there is no next
+                                // hop available for this multicast address
+                                let Some(dodag) = self.rpl.dodag.as_ref() else {
+                                    return Ok(heapless::Vec::new());
+                                };
+                                let Some(parent) = dodag.parent.as_ref() else {
+                                    return Ok(heapless::Vec::new());
+                                };
+                                let NeighborAnswer::Found(parent) =
+                                    self.neighbor_cache.lookup(&(*parent).into(), self.now)
+                                else {
+                                    return Ok(heapless::Vec::new());
+                                };
+
+                                let has_interested_child = dodag
+                                    .relations
+                                    .iter()
+                                    .any(|rel| IpAddress::Ipv6(rel.destination()) == *dst_addr);
+
+                                // The packet came from our parent, so we have a next hop
+                                if &parent == previous_hop && has_interested_child {
+                                    heapless::Vec::from_iter(core::iter::once(
+                                        HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST),
+                                    ))
+                                } else {
+                                    heapless::Vec::new()
+                                }
+                            }
+                            #[cfg(all(
+                                not(feature = "rpl-mop-3"),
+                                not(feature = "rpl-mop-3-smrf")
+                            ))]
                             {
                                 heapless::Vec::from_iter(core::iter::once(
                                     HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST),

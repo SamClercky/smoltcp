@@ -513,7 +513,12 @@ fn packet_forwarding_with_multicast() {
         .lookup_hardware_addr_multicast(&MULTICAST_GROUP.into(), None)
         .unwrap();
     let expected_haddrs: heapless::Vec<_, { IFACE_MAX_MULTICAST_DUPLICATION_COUNT }> =
-        heapless::Vec::from_slice(&[ll_addr.into(), MULTICAST_HOP_LL]).unwrap();
+        if cfg!(feature = "rpl-mop-3-smrf") {
+            heapless::Vec::from_slice(&[HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST)])
+                .unwrap()
+        } else {
+            heapless::Vec::from_slice(&[ll_addr.into(), MULTICAST_HOP_LL]).unwrap()
+        };
     assert_eq!(
         haddrs, expected_haddrs,
         "If originating from this mote, the multicast packet should be forwarded up and down"
@@ -525,7 +530,12 @@ fn packet_forwarding_with_multicast() {
         .lookup_hardware_addr_multicast(&MULTICAST_GROUP.into(), Some(&ll_addr.into()))
         .unwrap();
     let expected_haddrs: heapless::Vec<_, { IFACE_MAX_MULTICAST_DUPLICATION_COUNT }> =
-        heapless::Vec::from_slice(&[MULTICAST_HOP_LL]).unwrap();
+        if cfg!(feature = "rpl-mop-3-smrf") {
+            heapless::Vec::from_slice(&[HardwareAddress::Ieee802154(Ieee802154Address::BROADCAST)])
+                .unwrap()
+        } else {
+            heapless::Vec::from_slice(&[MULTICAST_HOP_LL]).unwrap()
+        };
     assert_eq!(
         haddrs, expected_haddrs,
         "If originating from the parent, the multicast packet should only forward the packet down"
@@ -537,7 +547,11 @@ fn packet_forwarding_with_multicast() {
         .lookup_hardware_addr_multicast(&MULTICAST_GROUP.into(), Some(&MULTICAST_HOP_LL))
         .unwrap();
     let expected_haddrs: heapless::Vec<_, { IFACE_MAX_MULTICAST_DUPLICATION_COUNT }> =
-        heapless::Vec::from_slice(&[ll_addr.into()]).unwrap();
+        if cfg!(feature = "rpl-mop-3-smrf") {
+            heapless::Vec::new()
+        } else {
+            heapless::Vec::from_slice(&[ll_addr.into()]).unwrap()
+        };
     assert_eq!(haddrs, expected_haddrs, "If originating from one of the children, the multicast packet should be forwarded up and to the other interested children");
 
     // Lookup haddrs of all local rpl motes, coming from this mote

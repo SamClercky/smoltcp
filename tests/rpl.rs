@@ -491,10 +491,16 @@ fn message_forwarding_up_and_down(
 }
 
 #[rstest]
-#[case::one(&[4])]
-#[case::two(&[4, 2])]
-#[case::three(&[4, 2, 3])]
-fn forward_multicast_up_and_down(#[case] multicast_receivers: &[usize]) {
+#[case::one(&[4], &[4])]
+#[case::one(&[4], &[0])]
+#[case::two(&[4, 2], &[4])]
+#[case::two(&[4, 2], &[0])]
+#[case::three(&[4, 2, 3], &[4])]
+#[case::root(&[4, 2, 3], &[0])]
+fn forward_multicast_up_and_down(
+    #[case] multicast_receivers: &[usize],
+    #[case] multicast_senders: &[usize],
+) {
     init();
 
     const MULTICAST_GROUP: Ipv6Address = Ipv6Address::new(0xff02, 0, 0, 0, 0, 0, 0, 3);
@@ -515,12 +521,18 @@ fn forward_multicast_up_and_down(#[case] multicast_receivers: &[usize]) {
     }
 
     // Setup UDP sender
-    sim::udp_sender_node(&mut sim.nodes_mut()[4], 1234, MULTICAST_GROUP);
+    for sender in multicast_senders {
+        sim::udp_sender_node(&mut sim.nodes_mut()[*sender], 1234, MULTICAST_GROUP);
+    }
 
     let mut pcap_file = Some(
         sim::PcapFile::new(std::path::Path::new(&format!(
-            "sim_logs/forward_multicast_up_and_down{}.pcap",
+            "sim_logs/forward_multicast_up_and_down-r{}-s{}.pcap",
             multicast_receivers
+                .iter()
+                .map(|id| id.to_string())
+                .fold(String::new(), |a, b| a + "-" + &b),
+            multicast_senders
                 .iter()
                 .map(|id| id.to_string())
                 .fold(String::new(), |a, b| a + "-" + &b),
